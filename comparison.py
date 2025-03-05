@@ -172,6 +172,6 @@ output_path = os.path.join("comparisons", model)
 trend_summary = plot_metrics_trend(results_files, system_files, training_results_file, output_dir=output_path)
 # Creazione cartella e salvataggio risultati
 output_path = os.path.join("comparisons", model)
-trend_summary = plot_metrics_trend(results_files, system_files, output_dir=output_path)
+trend_summary = plot_metrics_trend(results_files, system_files, training_results_file, output_dir=output_path)
 
 
