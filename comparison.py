@@ -4,96 +4,74 @@ import seaborn as sns
 import os
 from pathlib import Path
 
-def plot_metrics_trend(results_files, system_files, training_results_file, output_dir="metrics_trend_results"):
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)  # Crea la cartella se non esiste
 
-    results = {}
+def plot_metrics_trend(results_files, system_files, training_results_files, output_dir="metrics_trend_results"):
+    """
+    Analizza e visualizza le metriche di performance, risorse e training per diversi dataset sizes.
     
-    # Carica le metriche di sistema e performance
-    for size, metric_file in results_files.items():
-        system_file = system_files.get(size)  # Ottieni il file delle metriche di sistema corrispondente
+    :param results_files: Dizionario con i percorsi dei file delle metriche di performance.
+    :param system_files: Dizionario con i percorsi dei file delle metriche di sistema.
+    :param training_results_files: Dizionario con i percorsi dei file delle metriche di training.
+    :param output_dir: Cartella di output per salvare i risultati.
+    :return: DataFrame con i risultati aggregati.
+    """
+    # Crea la cartella di output se non esiste
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-        if os.path.exists(metric_file) and os.path.exists(system_file):  # Controlla se entrambi i file esistono
-            df_metrics = pd.read_csv(metric_file)
-            df_system = pd.read_csv(system_file)
+    # Lista per memorizzare i risultati aggregati
+    trend_data = []
 
-            # Uniamo i due DataFrame per la stessa dataset size
-            df_combined = pd.concat([df_metrics, df_system], axis=1)
-            results[size] = df_combined
-        else:
+    # Itera su ogni dataset size
+    for size in results_files.keys():
+        metric_file = results_files[size]
+        system_file = system_files.get(size)
+        training_file = training_results_files.get(size)
+
+        # Verifica se tutti i file esistono
+        if not all(os.path.exists(f) for f in [metric_file, system_file, training_file]):
             print(f"⚠️ File mancanti per Dataset Size {size}:")
-            if not os.path.exists(metric_file):
-                print(f"   ❌ {metric_file} non trovato.")
-            if not os.path.exists(system_file):
-                print(f"   ❌ {system_file} non trovato.")
+            for file, path in zip(["Metriche", "Sistema", "Training"], [metric_file, system_file, training_file]):
+                if not os.path.exists(path):
+                    print(f"   ❌ {file}: {path} non trovato.")
+            continue
 
-    if not results:
+        # Carica i file CSV
+        df_metrics = pd.read_csv(metric_file)
+        df_system = pd.read_csv(system_file)
+        df_training = pd.read_csv(training_file)
+
+        # Debug: stampa le prime righe dei DataFrame
+        print(f"\n📥 Dataset Size {size}:")
+        print(f"Metriche:\n{df_metrics.head()}")
+        print(f"Metriche di sistema:\n{df_system.head()}")
+        print(f"Metriche di training:\n{df_training.head()}")
+
+        # Combina i DataFrame
+        df_combined = pd.concat([df_metrics, df_system, df_training], axis=1)
+        df_combined['Dataset Size'] = size  # Aggiungi la colonna Dataset Size
+        trend_data.append(df_combined)
+
+    # Se non ci sono dati, termina la funzione
+    if not trend_data:
         print("❌ Nessun file trovato, impossibile generare il trend.")
         return None
 
-    # **Definizione delle metriche**
+    # Crea il DataFrame finale
+    trend_df = pd.concat(trend_data, ignore_index=True)
+
+    # Salva il DataFrame in un file CSV
+    trend_df.to_csv(output_dir / 'metrics_trend_summary.csv', index=False)
+
+    # **Plot delle metriche di performance**
     performance_metrics = ['accuracy', 'precision', 'recall', 'f1']
+    plot_trend(trend_df, performance_metrics, 'Performance Metric Trend by Dataset Size', 'Score', output_dir / 'performance_metrics_trend.png')
+
+    # **Plot delle risorse hardware**
     resource_metrics = ['cpu', 'ram', 'gpu', 'time']
+    plot_trend(trend_df, resource_metrics, 'Resource Usage Trend by Dataset Size', 'Usage', output_dir / 'resource_usage_trend.png')
 
-    trend_data = []
-    for size, df in results.items():
-        row = {'Dataset Size': size}
-        for metric in performance_metrics + resource_metrics:
-            if metric in df.columns:
-                row[metric] = df[metric].iloc[0]  # Prendiamo il primo valore disponibile
-        trend_data.append(row)
-
-    trend_df = pd.DataFrame(trend_data)
-    
-    # Carica i risultati di training dal file CSV
-    for size, training_file in training_results_file.items():
-        if os.path.exists(training_file):
-            df_training = pd.read_csv(training_file)
-            # Aggiungiamo le informazioni sui risultati di training (ad esempio Training Loss, Train Time)
-            for column in df_training.columns:
-                if column not in trend_df.columns:
-                    trend_df[column] = df_training[column].iloc[0]
-        else:
-            # Gestiamo il caso in cui il file di training non esista (ad esempio, per il modello non fine-tuned)
-            print(f"⚠️ Nessun dato di training trovato per Dataset Size {size} ({training_file})")
-            # Puoi aggiungere valori NaN o 0 se i dati di training non sono disponibili
-            trend_df['Training Loss'] = trend_df.get('Training Loss', pd.NA)
-            trend_df['Training Time'] = trend_df.get('Training Time', pd.NA)
-    
-    trend_df.sort_values(by='Dataset Size', inplace=True)
-
-    # **📈 Plot delle metriche di performance**
-    plt.figure(figsize=(12, 6))
-    for metric in performance_metrics:
-        if metric in trend_df.columns:
-            sns.lineplot(data=trend_df, x='Dataset Size', y=metric, marker='o', label=metric.capitalize())
-
-    plt.title('Performance Metric Trend by Dataset Size')
-    plt.xlabel('Dataset Size')
-    plt.ylabel('Score')
-    plt.legend()
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    plt.savefig(output_dir / 'performance_metrics_trend.png', dpi=300)
-    plt.close()
-
-    # **📊 Plot delle risorse hardware**
-    plt.figure(figsize=(12, 6))
-    for metric in resource_metrics:
-        if metric in trend_df.columns:
-            sns.lineplot(data=trend_df, x='Dataset Size', y=metric, marker='o', label=metric.upper())
-
-    plt.title('Resource Usage Trend by Dataset Size')
-    plt.xlabel('Dataset Size')
-    plt.ylabel('Usage')
-    plt.legend()
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    plt.savefig(output_dir / 'resource_usage_trend.png', dpi=300)
-    plt.close()
-
-    # **🔥 Heatmap combinata**
+    # **Heatmap combinata**
     plt.figure(figsize=(12, 6))
     sns.heatmap(trend_df.set_index('Dataset Size').T, annot=True, cmap='coolwarm', fmt='.4f')
     plt.title('Overall Metric Heatmap')
@@ -101,14 +79,35 @@ def plot_metrics_trend(results_files, system_files, training_results_file, outpu
     plt.savefig(output_dir / 'combined_metrics_heatmap.png', dpi=300)
     plt.close()
 
-    # **📄 Salvataggio tabella riassuntiva**
-    trend_df.to_csv(output_dir / 'metrics_trend_summary.csv', index=False)
-
     print("\nTrend visualization saved in:", output_dir)
     print("\nSummary:")
     print(trend_df)
 
     return trend_df
+
+
+def plot_trend(df, metrics, title, ylabel, output_path):
+    """
+    Crea un grafico a linee per le metriche specificate.
+    
+    :param df: DataFrame contenente i dati.
+    :param metrics: Lista delle metriche da plottare.
+    :param title: Titolo del grafico.
+    :param ylabel: Etichetta dell'asse Y.
+    :param output_path: Percorso di salvataggio del grafico.
+    """
+    plt.figure(figsize=(12, 6))
+    for metric in metrics:
+        if metric in df.columns:
+            sns.lineplot(data=df, x='Dataset Size', y=metric, marker='o', label=metric.capitalize())
+    plt.title(title)
+    plt.xlabel('Dataset Size')
+    plt.ylabel(ylabel)
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300)
+    plt.close()
 
 
 # Esempio di utilizzo
@@ -145,33 +144,18 @@ print(f"📂 Percorso parziale di selezione dei risultati: {partial_path}")
 results_files = {
     0: os.path.join(partial_path, f"{model}_not_fine_tuned", "metrics.csv"),
     1000: os.path.join(partial_path, f"{model}_fine_tuned_on_1000", "metrics.csv"),
-    #2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000", "metrics.csv"),
-    #5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000", "metrics.csv"),
-    #9000: os.path.join(partial_path, f"{model}_fine_tuned_on_9000", "metrics.csv"),
 }
 
 system_files = {
     0: os.path.join(partial_path, f"{model}_not_fine_tuned", "avg_system_metrics.csv"),
     1000: os.path.join(partial_path, f"{model}_fine_tuned_on_1000", "avg_system_metrics.csv"),
-    #2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000", "avg_system_metrics.csv"),
-    #5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000", "avg_system_metrics.csv"),
-    #9000: os.path.join(partial_path, f"{model}_fine_tuned_on_9000", "avg_system_metrics.csv"),
 }
 
-# Carica i file dei risultati di training
 training_results_file = {
-    0: "",
-    1000: os.path.join(partial_path, f"{model}_fine_tuned_on_1000/training_comparison.csv"),
-    #2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000/training_comparison.csv"),
-    #5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000/training_comparison.csv"),
-    #9000: os.path.join(partial_path, f"{model}_fine_tuned_on_9000/training_comparison.csv"),
-} 
+    0: os.path.join(partial_path, f"{model}_not_fine_tuned", "training_comparison.csv"),
+    1000: os.path.join(partial_path, f"{model}_fine_tuned_on_1000", "training_comparison.csv"),
+}
 
 # Creazione cartella e salvataggio risultati
 output_path = os.path.join("comparisons", model)
 trend_summary = plot_metrics_trend(results_files, system_files, training_results_file, output_dir=output_path)
-# Creazione cartella e salvataggio risultati
-output_path = os.path.join("comparisons", model)
-trend_summary = plot_metrics_trend(results_files, system_files, training_results_file, output_dir=output_path)
-
-
