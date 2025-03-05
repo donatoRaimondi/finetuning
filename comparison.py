@@ -4,11 +4,13 @@ import seaborn as sns
 import os
 from pathlib import Path
 
-def plot_metrics_trend(results_files, system_files, output_dir="metrics_trend_results"):
+def plot_metrics_trend(results_files, system_files, training_results_file, output_dir="metrics_trend_results"):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)  # Crea la cartella se non esiste
 
     results = {}
+    
+    # Carica le metriche di sistema e performance
     for size, metric_file in results_files.items():
         system_file = system_files.get(size)  # Ottieni il file delle metriche di sistema corrispondente
 
@@ -43,6 +45,22 @@ def plot_metrics_trend(results_files, system_files, output_dir="metrics_trend_re
         trend_data.append(row)
 
     trend_df = pd.DataFrame(trend_data)
+    
+    # Carica i risultati di training dal file CSV
+    for size, training_file in training_results_file.items():
+        if os.path.exists(training_file):
+            df_training = pd.read_csv(training_file)
+            # Aggiungiamo le informazioni sui risultati di training (ad esempio Training Loss, Train Time)
+            for column in df_training.columns:
+                if column not in trend_df.columns:
+                    trend_df[column] = df_training[column].iloc[0]
+        else:
+            # Gestiamo il caso in cui il file di training non esista (ad esempio, per il modello non fine-tuned)
+            print(f"⚠️ Nessun dato di training trovato per Dataset Size {size} ({training_file})")
+            # Puoi aggiungere valori NaN o 0 se i dati di training non sono disponibili
+            trend_df['Training Loss'] = trend_df.get('Training Loss', pd.NA)
+            trend_df['Training Time'] = trend_df.get('Training Time', pd.NA)
+    
     trend_df.sort_values(by='Dataset Size', inplace=True)
 
     # **📈 Plot delle metriche di performance**
@@ -127,16 +145,31 @@ print(f"📂 Percorso parziale di selezione dei risultati: {partial_path}")
 results_files = {
     0: os.path.join(partial_path, f"{model}_not_fine_tuned", "metrics.csv"),
     1000: os.path.join(partial_path, f"{model}_fine_tuned_on_1000", "metrics.csv"),
-    #2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000", "metrics.csv"),,
-    #5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000", "metrics.csv"),,
-    #9000: os.path.join(partial_path, f"{model}_fine_tuned_on_9000", "metrics.csv"),,
+    #2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000", "metrics.csv"),
+    #5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000", "metrics.csv"),
+    #9000: os.path.join(partial_path, f"{model}_fine_tuned_on_9000", "metrics.csv"),
 }
 
 system_files = {
     0: os.path.join(partial_path, f"{model}_not_fine_tuned", "avg_system_metrics.csv"),
     1000: os.path.join(partial_path, f"{model}_fine_tuned_on_1000", "avg_system_metrics.csv"),
+    #2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000", "avg_system_metrics.csv"),
+    #5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000", "avg_system_metrics.csv"),
+    #9000: os.path.join(partial_path, f"{model}_fine_tuned_on_9000", "avg_system_metrics.csv"),
 }
 
+# Carica i file dei risultati di training
+training_results_file = {
+    0: os.path.join(),
+    1000: os.path.join(partial_path, f"{model}_fine_tuned_on_1000/training_comparison.csv"),
+    #2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000/training_comparison.csv"),
+    #5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000/training_comparison.csv"),
+    #9000: os.path.join(partial_path, f"{model}_fine_tuned_on_9000/training_comparison.csv"),
+} 
+
+# Creazione cartella e salvataggio risultati
+output_path = os.path.join("comparisons", model)
+trend_summary = plot_metrics_trend(results_files, system_files, training_results_file, output_dir=output_path)
 # Creazione cartella e salvataggio risultati
 output_path = os.path.join("comparisons", model)
 trend_summary = plot_metrics_trend(results_files, system_files, output_dir=output_path)
