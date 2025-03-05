@@ -160,7 +160,7 @@ system_files = {
 
 # Carica i file dei risultati di training
 training_results_file = {
-    0: os.path.join(),
+    0: "",
     1000: os.path.join(partial_path, f"{model}_fine_tuned_on_1000/training_comparison.csv"),
     #2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000/training_comparison.csv"),
     #5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000/training_comparison.csv"),
