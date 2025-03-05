@@ -1,50 +1,89 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 from pathlib import Path
 
-def plot_metrics_trend(results_files, output_dir="metrics_trend_results"):
+def plot_metrics_trend(results_files, system_files, output_dir="metrics_trend_results"):
     output_dir = Path(output_dir)
-    output_dir.mkdir(exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)  # Crea la cartella se non esiste
 
-    # Caricamento dei file
-    results = {size: pd.read_csv(file) for size, file in results_files.items()}
-    metrics = ['accuracy', 'precision', 'recall', 'f1']
+    results = {}
+    for size, metric_file in results_files.items():
+        system_file = system_files.get(size)  # Ottieni il file delle metriche di sistema corrispondente
 
-    # Creazione di DataFrame aggregato
+        if os.path.exists(metric_file) and os.path.exists(system_file):  # Controlla se entrambi i file esistono
+            df_metrics = pd.read_csv(metric_file)
+            df_system = pd.read_csv(system_file)
+
+            # Uniamo i due DataFrame per la stessa dataset size
+            df_combined = pd.concat([df_metrics, df_system], axis=1)
+            results[size] = df_combined
+        else:
+            print(f"⚠️ File mancanti per Dataset Size {size}:")
+            if not os.path.exists(metric_file):
+                print(f"   ❌ {metric_file} non trovato.")
+            if not os.path.exists(system_file):
+                print(f"   ❌ {system_file} non trovato.")
+
+    if not results:
+        print("❌ Nessun file trovato, impossibile generare il trend.")
+        return None
+
+    # **Definizione delle metriche**
+    performance_metrics = ['accuracy', 'precision', 'recall', 'f1']
+    resource_metrics = ['cpu', 'ram', 'gpu', 'time']
+
     trend_data = []
     for size, df in results.items():
         row = {'Dataset Size': size}
-        for metric in metrics:
-            row[metric] = df[metric].iloc[0]
+        for metric in performance_metrics + resource_metrics:
+            if metric in df.columns:
+                row[metric] = df[metric].iloc[0]  # Prendiamo il primo valore disponibile
         trend_data.append(row)
 
     trend_df = pd.DataFrame(trend_data)
     trend_df.sort_values(by='Dataset Size', inplace=True)
 
-    # Plot lineare per le metriche
+    # **📈 Plot delle metriche di performance**
     plt.figure(figsize=(12, 6))
-    for metric in metrics:
-        sns.lineplot(data=trend_df, x='Dataset Size', y=metric, marker='o', label=metric.capitalize())
+    for metric in performance_metrics:
+        if metric in trend_df.columns:
+            sns.lineplot(data=trend_df, x='Dataset Size', y=metric, marker='o', label=metric.capitalize())
 
-    plt.title('Metric Trend by Dataset Size')
+    plt.title('Performance Metric Trend by Dataset Size')
     plt.xlabel('Dataset Size')
     plt.ylabel('Score')
     plt.legend()
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
-    plt.savefig(output_dir / 'metrics_trend.png', dpi=300)
+    plt.savefig(output_dir / 'performance_metrics_trend.png', dpi=300)
     plt.close()
 
-    # Heatmap delle metriche
-    plt.figure(figsize=(10, 6))
-    sns.heatmap(trend_df.set_index('Dataset Size').T, annot=True, cmap='YlGnBu', fmt='.4f')
-    plt.title('Metric Heatmap by Dataset Size')
+    # **📊 Plot delle risorse hardware**
+    plt.figure(figsize=(12, 6))
+    for metric in resource_metrics:
+        if metric in trend_df.columns:
+            sns.lineplot(data=trend_df, x='Dataset Size', y=metric, marker='o', label=metric.upper())
+
+    plt.title('Resource Usage Trend by Dataset Size')
+    plt.xlabel('Dataset Size')
+    plt.ylabel('Usage')
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
-    plt.savefig(output_dir / 'metrics_heatmap.png', dpi=300)
+    plt.savefig(output_dir / 'resource_usage_trend.png', dpi=300)
     plt.close()
 
-    # Salvataggio tabella riassuntiva
+    # **🔥 Heatmap combinata**
+    plt.figure(figsize=(12, 6))
+    sns.heatmap(trend_df.set_index('Dataset Size').T, annot=True, cmap='coolwarm', fmt='.4f')
+    plt.title('Overall Metric Heatmap')
+    plt.tight_layout()
+    plt.savefig(output_dir / 'combined_metrics_heatmap.png', dpi=300)
+    plt.close()
+
+    # **📄 Salvataggio tabella riassuntiva**
     trend_df.to_csv(output_dir / 'metrics_trend_summary.csv', index=False)
 
     print("\nTrend visualization saved in:", output_dir)
@@ -53,10 +92,11 @@ def plot_metrics_trend(results_files, output_dir="metrics_trend_results"):
 
     return trend_df
 
+
 # Esempio di utilizzo
 dictionary_path = {
     1: {"path": "isola_esperimento_llm/meta-llama/", "model": "Llama-3.1-8b-Instruct"},
-    2: {"path": "isola_classificazione_distilbert/", "model": "distilber-base-uncased"}
+    2: {"path": "isola_classificazione_distilbert/", "model": "distilbert-base-uncased"}
 }
 
 # Mostra il menu all'utente
@@ -85,12 +125,20 @@ print(f"\n✅ Hai selezionato: {model}")
 print(f"📂 Percorso parziale di selezione dei risultati: {partial_path}")
 
 results_files = {
-    0: f"{partial_path}/{model}_not_fine_tuned/metrics.csv",
-    1000: f"{partial_path}/{model}_fine_tuned_on_1000/metrics.csv",
-    #2000: f"{partial_path}/{model}_fine_tuned_on_2000/metrics.csv",
-    #5000: f"{partial_path}/{model}_fine_tuned_on_5000/metrics.csv",
-    9000: f"{partial_path}/{model}_fine_tuned_on_9000/metrics.csv",
+    0: os.path.join(partial_path, f"{model}_not_fine_tuned", "metrics.csv"),
+    1000: os.path.join(partial_path, f"{model}_fine_tuned_on_1000", "metrics.csv"),
+    #2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000", "metrics.csv"),,
+    #5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000", "metrics.csv"),,
+    #9000: os.path.join(partial_path, f"{model}_fine_tuned_on_9000", "metrics.csv"),,
 }
 
-#dove salviamo i risultati della comparazione
-trend_summary = plot_metrics_trend(results_files, output_dir=f"comparisons/{model}") 
+system_files = {
+    0: os.path.join(partial_path, f"{model}_not_fine_tuned", "avg_system_metrics.csv"),
+    1000: os.path.join(partial_path, f"{model}_fine_tuned_on_1000", "avg_system_metrics.csv"),
+}
+
+# Creazione cartella e salvataggio risultati
+output_path = os.path.join("comparisons", model)
+trend_summary = plot_metrics_trend(results_files, system_files, output_dir=output_path)
+
+
