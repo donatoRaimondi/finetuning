@@ -144,25 +144,25 @@ print(f"📂 Percorso parziale di selezione dei risultati: {partial_path}")
 results_files = {
     0: os.path.join(partial_path, f"{model}_not_fine_tuned", "metrics.csv"),
     1000: os.path.join(partial_path, f"{model}_fine_tuned_on_1000", "metrics.csv"),
-    2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000", "metrics.csv"),
-    5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000", "metrics.csv"),
-    9000: os.path.join(partial_path, f"{model}_fine_tuned_on_9000", "metrics.csv"),
+    #2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000", "metrics.csv"),
+    #5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000", "metrics.csv"),
+    #9000: os.path.join(partial_path, f"{model}_fine_tuned_on_9000", "metrics.csv"),
 }
 
 system_files = {
     0: os.path.join(partial_path, f"{model}_not_fine_tuned", "avg_system_metrics.csv"),
     1000: os.path.join(partial_path, f"{model}_fine_tuned_on_1000", "avg_system_metrics.csv"),
-    2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000", "avg_system_metrics.csv"),
-    5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000", "avg_system_metrics.csv"),
-    9000: os.path.join(partial_path, f"{model}_fine_tuned_on_9000", "avg_system_metrics.csv"),
+    #2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000", "avg_system_metrics.csv"),
+    #5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000", "avg_system_metrics.csv"),
+    #9000: os.path.join(partial_path, f"{model}_fine_tuned_on_9000", "avg_system_metrics.csv"),
 }
 
 training_results_file = {
     0: os.path.join(partial_path, f"{model}_not_fine_tuned", "training_comparison.csv"),
     1000: os.path.join(partial_path, f"{model}_fine_tuned_on_1000", "training_comparison.csv"),
-    2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000", "training_comparison.csv"),
-    5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000", "training_comparison.csv"),
-    9000: os.path.join(partial_path, f"{model}_fine_tuned_on_9000", "training_comparison.csv"),
+    #2000: os.path.join(partial_path, f"{model}_fine_tuned_on_2000", "training_comparison.csv"),
+    #5000: os.path.join(partial_path, f"{model}_fine_tuned_on_5000", "training_comparison.csv"),
+    #9000: os.path.join(partial_path, f"{model}_fine_tuned_on_9000", "training_comparison.csv"),
 }
 
 # Creazione cartella e salvataggio risultati
