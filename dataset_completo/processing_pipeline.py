@@ -26,18 +26,12 @@ if __name__ == "__main__":
         exit(1)
     
     # Step 2: Fusione e pulizia CSV
-    if not run_script("mergeCsv.py", "Unione e pulizia dei file CSV"):
-        exit(1)
-    
-    # Step 3: Processing e assegnazione labels
-    if not run_script("processacsv.py", "Processamento e assegnazione labels"):
+    if not run_script("mergeCsv.py", "Unione e pulizia dei file CSV, assegnazione delle labels"):
         exit(1)
 
-    # Step 4: Creazione dataset bilanciati
-    if not run_script("split_into_balanced_datasets.py", "Creazione di dataset bilanciati per training e valutazione"):
+    # Step 3: Creazione dataset bilanciati
+    if not run_script("split_into_balanced_datasets.py", "Creazione di dataset bilanciati per training, valutazione e test"):
         exit(1)
-    # Step 5: Verifica il bilanciamento dei dataset
-    if not run_script("verifica_bilanciamento.py", "Verifica il bilanciamento dei dataset"):
-        exit(1)
+
 
     print("\nPipeline completata con successo!")

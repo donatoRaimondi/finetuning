@@ -1,157 +1,128 @@
-# fonde i csv e stampiamo delle statistiche utili
-
 import pandas as pd
+import numpy as np
 import re
 import os
 
 def clean_text(text):
+    """
+    Pulisce il testo rimuovendo spazi extra e normalizzando i caratteri speciali.
+    
+    Args:
+        text (str): Testo da pulire.
+    
+    Returns:
+        str o np.nan: Testo pulito o NaN se vuoto.
+    """
     if isinstance(text, str):
-        text = re.sub(r'http\S+|www\S+', '', text)  # Remove URLs
-        text = re.sub(r'<.*?>', '', text)  # Remove HTML tags
-        text = re.sub(r'[^a-zA-Z0-9\s]', '', text)  # Remove special characters
-        text = re.sub(r'\s+', ' ', text).strip()  # Remove extra spaces
-        return text
-    return text  # Return original value if not a string
+        text = re.sub(r'\s+', ' ', text).strip()  # Rimuove spazi extra
+        return text if text else np.nan
+    return np.nan
 
-def calculate_dataset_stats(df, source_name):
-    """Calculate and print statistics for individual dataset"""
-    # Convert days_resolution to numeric
-    df['days_resolution'] = pd.to_numeric(df['days_resolution'], errors='coerce')
-    df = df.dropna(subset=['days_resolution'])
-    
-    # Calculate percentiles
-    percentile_75 = df['days_resolution'].quantile(0.75)
-    
-    # Assign labels
-    df['label'] = df['days_resolution'].apply(lambda x: 0 if x <= percentile_75 else 1)
-    
-    print(f"\nStatistics for {source_name}:")
-    print(f"Total rows: {len(df)}")
-    print(f"75th percentile: {percentile_75:.2f} days")
-    print(f"Label 0 (≤{percentile_75:.2f} days): {sum(df['label'] == 0)}")
-    print(f"Label 1 (>{percentile_75:.2f} days): {sum(df['label'] == 1)}")
-    print("\nDays Resolution Statistics:")
-    print(df['days_resolution'].describe())
-    print("-" * 50)
-    
-    return df, percentile_75
+def handle_missing_values(df):
+    """
+    Gestisce i valori mancanti in modo conservativo:
+    - Riempe `days_resolution` con il 75° percentile del dataset.
+    - Sostituisce altri valori numerici mancanti con 0.
+    - Riempe colonne testuali con "Unknown".
+    - Rimuove duplicati.
 
-# List of file names
-files = [
-    'Eclipse', 'FreeDesktop', 'Gentoo', 'KDE', 'LibreOffice',
-    'LiveCode', 'NetBeans', 'Novell', 'OpenOffice', 'OpenXchange', 'W3C'
-]
+    Args:
+        df (pd.DataFrame): DataFrame da elaborare.
+    
+    Returns:
+        pd.DataFrame: DataFrame con valori mancanti gestiti.
+    """
+    df = df.copy()
+    
+    # Identifica colonne numeriche e testuali
+    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    text_columns = df.select_dtypes(include=['object']).columns
+    
+    # Sostituisce i valori mancanti nelle colonne numeriche
+    for col in numeric_columns:
+        if col == 'days_resolution':
+            df[col].fillna(df[col].quantile(0.75), inplace=True)  # Usa il 75° percentile
+        else:
+            df[col].fillna(0, inplace=True)  # Usa 0 per altre colonne numeriche
+    
+    # Sostituisce valori mancanti nelle colonne testuali con 'Unknown'
+    for col in text_columns:
+        df[col].fillna('Unknown', inplace=True)
+    
+    # Rimuove righe duplicate
+    df.drop_duplicates(inplace=True)
+    
+    return df
 
-# Initialize an empty list to store dataframes and a dict for percentiles
-dfs = []
-percentiles = {}
+def process_and_merge_datasets(input_dir='csv_output_from_json', output_dir='processed_labeled_datasets'):
+    """
+    Processa e unisce i dataset:
+    - Pulisce i dati e gestisce i valori mancanti.
+    - Converte `days_resolution` in numerico e rimuove righe con valori non validi.
+    - Assegna etichette (`label`) basate sul 75° percentile globale.
+    - Salva i dataset processati e il dataset unificato.
 
-# Read and process each file
-for file in files:
-    csv_file = f'csv_output_from_json/{file}_data.csv'
-    if os.path.exists(csv_file):
+    Args:
+        input_dir (str): Cartella contenente i file CSV di input.
+        output_dir (str): Cartella in cui salvare i file processati.
+    """
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)  # Crea la cartella di output se non esiste
+    
+    files = [f for f in os.listdir(input_dir) if f.endswith('_data.csv')]
+    cleaned_dfs = []  # Lista per i dataset puliti
+    
+    print("Elaborazione dei dataset in corso...")
+    for file in files:
+        source_name = file.replace('_data.csv', '')  # Estrae il nome della fonte dal file
         try:
-            print(f"\nProcessing {file}...")
-            df = pd.read_csv(csv_file)
+            # Carica il file CSV
+            df = pd.read_csv(os.path.join(input_dir, file))
             
-            # Clean text columns
-            text_columns = ['short_desc', 'comments', 'product', 'priority']
-            for col in text_columns:
+            # Pulisce le colonne di testo
+            for col in ['short_desc', 'comments', 'product', 'priority']:
                 if col in df.columns:
                     df[col] = df[col].apply(clean_text)
             
-            # Remove rows where all columns are NaN
-            df = df.dropna(how='all')
+            # Gestisce i valori mancanti
+            df = handle_missing_values(df)
             
-            # Add source column
-            df['source'] = file
+            # Converte `days_resolution` in numerico e rimuove righe non valide
+            df['days_resolution'] = pd.to_numeric(df['days_resolution'], errors='coerce')
+            df.dropna(subset=['days_resolution'], inplace=True)
             
-            # Calculate statistics for this dataset
-            processed_df, p75 = calculate_dataset_stats(df, file)
+            # Aggiunge il nome della fonte
+            df['source'] = source_name
             
-            # Store results
-            dfs.append(processed_df)
-            percentiles[file] = p75
-            
-            print(f"Successfully processed {file} - {len(df)} rows")
-            
+            cleaned_dfs.append(df)
+        
         except Exception as e:
-            print(f"Error processing {file}: {str(e)}")
-    else:
-        print(f"File not found: {csv_file}")
+            print(f"Errore durante l'elaborazione di {source_name}: {str(e)}")
+    
+    # Se non ci sono dataset validi, termina l'esecuzione
+    if not cleaned_dfs:
+        print("Nessun dataset valido trovato. Uscita.")
+        return
+    
+    # Unisce i dataset e calcola il 75° percentile globale
+    print("Unione dei dataset e calcolo del 75° percentile globale...")
+    merged_df = pd.concat(cleaned_dfs, ignore_index=True)
+    global_75th_percentile = merged_df['days_resolution'].quantile(0.75)
+    
+    # Assegna etichette ai dataset singoli e li salva
+    final_dfs = []
+    for df in cleaned_dfs:
+        df['label'] = (df['days_resolution'] > global_75th_percentile).astype(int)
+        output_file = os.path.join(output_dir, f"{df['source'].iloc[0]}_processed_labeled.csv")
+        df.to_csv(output_file, index=False)
+        final_dfs.append(df)
+    
+    # Unisce e salva il dataset finale
+    final_merged_df = pd.concat(final_dfs, ignore_index=True)
+    merged_output = os.path.join(output_dir, "merged_processed_labeled.csv")
+    final_merged_df.to_csv(merged_output, index=False)
+    
+    print("Elaborazione completata. Dataset unificato salvato.")
 
-if not dfs:
-    print("No data frames were created. Check your input files and paths.")
-    exit()
-
-# Concatenate all dataframes
-print("\nMerging dataframes...")
-merged_df = pd.concat(dfs, ignore_index=True)
-merged_df = merged_df.drop_duplicates()
-
-# Calculate merged dataset statistics
-merged_df['days_resolution'] = pd.to_numeric(merged_df['days_resolution'], errors='coerce')
-merged_df = merged_df.dropna(subset=['days_resolution'])
-percentile_75_merged = merged_df['days_resolution'].quantile(0.75)
-
-# Assign labels for merged dataset
-merged_df['label'] = merged_df['days_resolution'].apply(lambda x: 0 if x <= percentile_75_merged else 1)
-
-# Save the cleaned and merged data
-output_file = 'merged_processed_labeled.csv'
-merged_df.to_csv(output_file, index=False)
-
-# Print final statistics
-print("\nFINAL STATISTICS FOR ALL DATASETS:")
-print("\nIndividual Dataset 75th Percentiles:")
-for file, perc in percentiles.items():
-    print(f"{file}: {perc:.2f} days")
-
-print(f"\nMerged Dataset 75th Percentile: {percentile_75_merged:.2f} days")
-print(f"Total rows in merged dataset: {len(merged_df)}")
-print(f"Label 0 (≤{percentile_75_merged:.2f} days): {sum(merged_df['label'] == 0)}")
-print(f"Label 1 (>{percentile_75_merged:.2f} days): {sum(merged_df['label'] == 1)}")
-
-print("\nRows per source in merged dataset:")
-print(merged_df['source'].value_counts())
-
-print("\nMerged Dataset Days Resolution Statistics:")
-print(merged_df['days_resolution'].describe())
-
-# Create a dictionary to store row counts
-row_counts = {df['source'].iloc[0]: len(df) for df in dfs}
-
-# Save percentiles and row counts to a separate CSV for reference
-percentiles_df = pd.DataFrame([
-    {
-        "source": source,
-        "percentile_75": perc,
-        "total_rows": row_counts[source],
-        "rows_label_0": sum(dfs[i]['label'] == 0) if source == dfs[i]['source'].iloc[0] else None,
-        "rows_label_1": sum(dfs[i]['label'] == 1) if source == dfs[i]['source'].iloc[0] else None,
-    } 
-    for i, (source, perc) in enumerate(percentiles.items())
-])
-
-# Add percentage columns
-percentiles_df['percent_label_0'] = (percentiles_df['rows_label_0'] / percentiles_df['total_rows'] * 100).round(2)
-percentiles_df['percent_label_1'] = (percentiles_df['rows_label_1'] / percentiles_df['total_rows'] * 100).round(2)
-
-# Reorder columns for better readability
-percentiles_df = percentiles_df[[
-    'source', 
-    'total_rows', 
-    'percentile_75',
-    'rows_label_0',
-    'percent_label_0',
-    'rows_label_1',
-    'percent_label_1'
-]]
-
-# Save to CSV
-percentiles_df.to_csv('dataset_percentiles.csv', index=False)
-
-# Print the detailed statistics
-print("\nDetailed statistics per dataset saved to dataset_percentiles.csv:")
-print("\nSummary of datasets:")
-print(percentiles_df.to_string(index=False))
+if __name__ == "__main__":
+    process_and_merge_datasets()
