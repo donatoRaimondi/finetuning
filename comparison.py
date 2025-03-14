@@ -3,8 +3,44 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 from pathlib import Path
+import scipy.stats as stats
 
+def analyze_regression(df, metrics, output_dir):
+    """
+    Applica la regressione lineare alle metriche rispetto alla dimensione del dataset.
 
+    :param df: DataFrame contenente i dati aggregati.
+    :param metrics: Lista delle metriche da analizzare.
+    :param output_dir: Cartella di output per salvare i grafici.
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for metric in metrics:
+        if metric in df.columns:
+            x = df['Dataset Size']
+            y = df[metric]
+
+            # Calcolo della regressione lineare
+            slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+
+            print(f"\n🔹 Regressione per {metric}:")
+            print(f"   Pendenza (slope): {slope:.4f}")
+            print(f"   Intercetta: {intercept:.4f}")
+            print(f"   R-quadro (correlazione): {r_value**2:.4f}")
+            print(f"   p-value: {p_value:.4f} (Significativo se < 0.05)")
+
+            # Grafico della regressione
+            plt.figure(figsize=(8, 5))
+            plt.scatter(x, y, label="Dati osservati", color="blue")
+            plt.plot(x, intercept + slope*x, color="red", linestyle="--", label="Regressione Lineare")
+            plt.xlabel("Dataset Size")
+            plt.ylabel(metric)
+            plt.title(f"Regressione Lineare: {metric} vs Dataset Size")
+            plt.legend()
+            plt.grid(True, linestyle="--", alpha=0.6)
+            plt.savefig(output_dir / f"regression_{metric}.png", dpi=300)
+            plt.close()
 def plot_metrics_trend(results_files, system_files, training_results_files, output_dir="metrics_trend_results"):
     """
     Analizza e visualizza le metriche di performance, risorse e training per diversi dataset sizes.
@@ -83,6 +119,10 @@ def plot_metrics_trend(results_files, system_files, training_results_files, outp
     print("\nSummary:")
     print(trend_df)
 
+    #  Analizziamo la regressione sulle metriche di performance
+    performance_metrics = ['accuracy', 'precision', 'recall', 'f1']
+    analyze_regression(trend_df, performance_metrics, output_dir)
+
     return trend_df
 
 
@@ -112,8 +152,10 @@ def plot_trend(df, metrics, title, ylabel, output_path):
 
 # Esempio di utilizzo
 dictionary_path = {
-    1: {"path": "isola_esperimento_llm/meta-llama/", "model": "Llama-3.1-8b-Instruct"},
-    2: {"path": "isola_classificazione_distilbert/", "model": "distilbert-base-uncased"}
+    1: {"path": "isola_esperimento_llm/meta-llama/", "model": "Llama-3.1-8B-Instruct"},
+    2: {"path": "isola_classificazione_distilbert/", "model": "distilbert-base-uncased"},
+    3: {"path": "isola_esperimento_llm/mistralai", "model": "Mistral-7B-Instruct-v0.3"},
+    4: {"path": "isola_esperimento_llm/meta-llama", "model": "meta-llama/Llama-3.2-1B-Instruct"},
 }
 
 # Mostra il menu all'utente
@@ -168,3 +210,7 @@ training_results_file = {
 # Creazione cartella e salvataggio risultati
 output_path = os.path.join("comparisons", model)
 trend_summary = plot_metrics_trend(results_files, system_files, training_results_file, output_dir=output_path)
+
+
+
+
